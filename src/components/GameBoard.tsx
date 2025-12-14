@@ -86,6 +86,11 @@ export function GameBoard() {
         <div className="text-center py-4">
           {phase === 'drawing' && (
             <div>
+              {currentPlayer.skipNextTurn && (
+                <p className="text-red-400 text-lg font-bold mb-2 animate-pulse">
+                  ⚠️ {currentPlayer.name} is skipping this turn (defeated by monster)
+                </p>
+              )}
               {isBossFight ? (
                 <p className="text-white text-lg">
                   <span className="font-bold text-red-400">BOSS FIGHT!</span>

@@ -26,7 +26,7 @@ export function PlayerScoreboard({
           <div
             key={player.id}
             className={`
-              relative px-4 py-3 rounded-xl shadow-lg min-w-[140px]
+              relative px-4 py-3 rounded-xl shadow-lg min-w-[160px]
               transition-all duration-300
               ${isSelecting
                 ? 'ring-4 ring-yellow-400 scale-105 shadow-yellow-400/50'
@@ -45,6 +45,11 @@ export function PlayerScoreboard({
             {isCurrentTurn && !isSelecting && (
               <div className="absolute -top-2 -right-2 bg-white text-gray-700 text-xs font-bold px-2 py-1 rounded-full">
                 Turn
+              </div>
+            )}
+            {player.skipNextTurn && (
+              <div className="absolute -top-2 -left-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+                Skip
               </div>
             )}
 
@@ -71,6 +76,15 @@ export function PlayerScoreboard({
               </div>
             </div>
 
+            {/* Equipment count */}
+            {player.equipment.length > 0 && (
+              <div className="mt-1">
+                <div className="bg-yellow-600/60 text-white px-2 py-1 rounded text-xs font-bold inline-block">
+                  ⚒️ {player.equipment.length} equipment
+                </div>
+              </div>
+            )}
+
             {/* Progress bar */}
             <div className="mt-2 h-2 bg-black/20 rounded-full overflow-hidden">
               <div
@@ -79,8 +93,10 @@ export function PlayerScoreboard({
               />
             </div>
 
-            <div className="text-white/60 text-xs mt-1">
-              {player.hand.length} cards
+            <div className="flex gap-2 text-white/60 text-xs mt-1">
+              <span>{player.hand.length} cards</span>
+              <span>•</span>
+              <span>💰 {player.inventory.length} monsters</span>
             </div>
           </div>
         );

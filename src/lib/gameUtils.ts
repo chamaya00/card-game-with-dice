@@ -34,8 +34,8 @@ export function generateDeck(): Card[] {
   for (let copy = 0; copy < 3; copy++) {
     for (let i = 0; i < MONSTER_NAMES.length; i++) {
       // Vary the difficulty - some monsters are tougher than others
-      const baseStrength = (i % 10) + 1;  // 1-10
-      const baseDefense = (i % 10) + 1;   // 1-10
+      const baseStrength = (i % 2) + 1;  // 1-2 (reduced for testing)
+      const baseDefense = (i % 3) + 1;   // 1-3 (reduced for testing)
       const pointValue = Math.min(Math.floor(baseStrength / 3) + 1, 3); // 1-3 based on strength
 
       deck.push({
@@ -47,9 +47,51 @@ export function generateDeck(): Card[] {
         strength: baseStrength,
         defense: baseDefense,
         pointValue: pointValue,
+        goldValue: baseStrength, // Gold value equals strength
       });
     }
   }
+
+  // Add equipment cards to the main deck
+  EQUIPMENT_NAMES.forEach((name, i) => {
+    // Cost ranges from 1-10 (not used in free pickup mode, but kept for display)
+    const cost = (i % 10) + 1;
+
+    // Determine if item is more strength or defense focused
+    const isStrengthFocused = i % 3 !== 0;
+    const isDefenseFocused = i % 3 === 0;
+    const isBalanced = i % 5 === 0;
+
+    let strengthBonus = 0;
+    let defenseBonus = 0;
+
+    if (isBalanced) {
+      // Balanced items give both stats
+      strengthBonus = Math.floor(cost / 2);
+      defenseBonus = Math.floor(cost / 2);
+    } else if (isStrengthFocused) {
+      // Strength focused items
+      strengthBonus = cost;
+      defenseBonus = Math.floor(cost / 3);
+    } else {
+      // Defense focused items
+      strengthBonus = Math.floor(cost / 3);
+      defenseBonus = cost;
+    }
+
+    deck.push({
+      id: `shop-${id++}`,
+      name,
+      description: `+${strengthBonus} STR, +${defenseBonus} DEF`,
+      color: '#FFD700', // Gold color for shop items
+      isMonster: false,
+      isShopItem: true,
+      itemType: 'equipment',
+      cost,
+      strengthBonus,
+      defenseBonus,
+    });
+  });
 
   return shuffleDeck(deck);
 }
@@ -74,11 +116,20 @@ export function generateBossDeck(): Card[] {
       strength,
       defense,
       pointValue,
+      goldValue: strength, // Gold value equals strength for bosses too
     });
   });
 
   return shuffleDeck(bossDeck);
 }
+
+const EQUIPMENT_NAMES = [
+  'Iron Sword', 'Steel Sword', 'Enchanted Blade', 'Dragon Slayer',
+  'Leather Armor', 'Chain Mail', 'Plate Armor', 'Dragon Scale Armor',
+  'Wooden Shield', 'Iron Shield', 'Tower Shield', 'Blessed Shield',
+  'Magic Ring', 'Power Amulet', 'Battle Helm', 'Gauntlets of Strength',
+  'Boots of Speed', 'Cloak of Defense', 'Berserker Axe', 'Holy Mace',
+];
 
 export function shuffleDeck(deck: Card[]): Card[] {
   const shuffled = [...deck];
@@ -95,9 +146,12 @@ export function createPlayer(id: string, name: string, index: number): Player {
     name,
     points: 0,
     hand: [],
+    inventory: [],    // Empty inventory at start
+    equipment: [],    // No equipment at start
     color: PLAYER_COLORS[index % PLAYER_COLORS.length],
-    strength: 1,  // All players start with strength 1
-    defense: 1,   // All players start with defense 1
+    strength: 1,      // All players start with strength 1
+    defense: 1,       // All players start with defense 1
+    skipNextTurn: false, // No penalty at start
   };
 }
 
@@ -127,6 +181,29 @@ export function getCardsToDrawCount(playerCount: number): number {
 }
 
 export function drawCards(state: GameState): GameState {
+  const currentPlayer = state.players[state.currentPlayerIndex];
+
+  // Check if current player has skip turn penalty
+  if (currentPlayer.skipNextTurn) {
+    // Skip this player's turn and remove penalty
+    const updatedPlayers = state.players.map(p => {
+      if (p.id === currentPlayer.id) {
+        return { ...p, skipNextTurn: false };
+      }
+      return p;
+    });
+
+    const nextPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+
+    return {
+      ...state,
+      players: updatedPlayers,
+      currentPlayerIndex: nextPlayerIndex,
+      selectingPlayerIndex: nextPlayerIndex,
+      turnNumber: state.turnNumber + 1,
+    };
+  }
+
   const isBossFight = state.turnNumber % BOSS_FIGHT_INTERVAL === 0;
   const playerCount = state.players.length;
 
@@ -184,11 +261,67 @@ export function selectCard(state: GameState, cardId: string): GameState {
   if (!card) return state;
 
   const selectingPlayer = state.players[state.selectingPlayerIndex];
+  let updatedPlayers = state.players;
+  let updatedInPlayZone = state.inPlayZone;
+
+  // Equipment card logic - equip for free
+  if (card.isShopItem) {
+    const strengthBonus = card.strengthBonus || 0;
+    const defenseBonus = card.defenseBonus || 0;
+
+    updatedPlayers = state.players.map(p => {
+      if (p.id === selectingPlayer.id) {
+        // Remove old equipment bonuses if any
+        let newStrength = p.strength;
+        let newDefense = p.defense;
+
+        if (p.equipment.length > 0) {
+          const oldEquipment = p.equipment[0];
+          newStrength -= (oldEquipment.strengthBonus || 0);
+          newDefense -= (oldEquipment.defenseBonus || 0);
+        }
+
+        // Add new equipment bonuses
+        newStrength += strengthBonus;
+        newDefense += defenseBonus;
+
+        return {
+          ...p,
+          equipment: [card], // Replace equipment (only one allowed)
+          strength: newStrength,
+          defense: newDefense,
+        };
+      }
+      return p;
+    });
+
+    // Remove equipment from play
+    updatedInPlayZone = state.inPlayZone.filter(c => c.id !== cardId);
+
+    // Move to next selecting player
+    const nextSelectingIndex = (state.selectingPlayerIndex + 1) % state.players.length;
+    const allPlayersSelected = nextSelectingIndex === state.currentPlayerIndex;
+
+    if (allPlayersSelected) {
+      return {
+        ...state,
+        players: updatedPlayers,
+        inPlayZone: updatedInPlayZone,
+        phase: 'discarding',
+        selectingPlayerIndex: nextSelectingIndex,
+      };
+    }
+
+    return {
+      ...state,
+      players: updatedPlayers,
+      inPlayZone: updatedInPlayZone,
+      selectingPlayerIndex: nextSelectingIndex,
+    };
+  }
 
   // Combat logic for monster cards
-  let updatedPlayers = state.players;
   let combatResult: 'victory' | 'defeat' | null = null;
-  let updatedInPlayZone = state.inPlayZone;
   let bossDefeated = state.bossDefeated;
 
   if (card.isMonster && card.strength !== undefined && card.defense !== undefined) {
@@ -210,13 +343,14 @@ export function selectCard(state: GameState, cardId: string): GameState {
         updatedInPlayZone = state.inPlayZone.filter(c => c.id !== cardId);
       }
 
-      // Add card to hand and award points
+      // Add card to inventory (for trading) and hand, award points
       updatedPlayers = state.players.map(p => {
         if (p.id === selectingPlayer.id) {
           const pointsGained = card.pointValue || 0;
           return {
             ...p,
             hand: [...p.hand, card],
+            inventory: [...p.inventory, card], // Add to inventory for trading
             points: p.points + pointsGained,
           };
         }
@@ -237,12 +371,14 @@ export function selectCard(state: GameState, cardId: string): GameState {
       }
 
       // Player gets the card but no points (they were defeated)
+      // Apply penalty: skip next turn
       // Unless it's a boss that stays in play
       updatedPlayers = state.players.map(p => {
         if (p.id === selectingPlayer.id) {
           return {
             ...p,
             hand: card.isBoss ? p.hand : [...p.hand, card],
+            skipNextTurn: true, // Apply penalty
           };
         }
         return p;

@@ -44,9 +44,37 @@ export function Card({ card, onClick, selectable = false, small = false }: CardP
           BOSS
         </div>
       )}
-      <div className={`text-white font-bold text-center drop-shadow-md ${card.isBoss ? 'mt-2' : ''}`}>
+      {card.isShopItem && (
+        <div className={`${small ? 'text-xs' : 'text-sm'} bg-green-500 text-white px-2 py-0.5 rounded-full font-bold shadow-md absolute -top-2`}>
+          SHOP
+        </div>
+      )}
+      <div className={`text-white font-bold text-center drop-shadow-md ${card.isBoss || card.isShopItem ? 'mt-2' : ''}`}>
         {card.name}
       </div>
+
+      {/* Shop item stats display */}
+      {card.isShopItem && (
+        <div className="space-y-1">
+          <div className={`${small ? 'text-[10px]' : 'text-sm'} text-center`}>
+            <div className="bg-yellow-600/90 text-white px-2 py-1 rounded font-bold shadow-inner">
+              💰 {card.cost} Gold
+            </div>
+          </div>
+          <div className={`flex gap-1 ${small ? 'text-[10px]' : 'text-xs'}`}>
+            {card.strengthBonus !== undefined && card.strengthBonus > 0 && (
+              <div className="bg-red-600/90 text-white px-1.5 py-0.5 rounded font-bold shadow-inner">
+                +{card.strengthBonus} ⚔️
+              </div>
+            )}
+            {card.defenseBonus !== undefined && card.defenseBonus > 0 && (
+              <div className="bg-blue-600/90 text-white px-1.5 py-0.5 rounded font-bold shadow-inner">
+                +{card.defenseBonus} 🛡️
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Monster stats display */}
       {card.isMonster && (
