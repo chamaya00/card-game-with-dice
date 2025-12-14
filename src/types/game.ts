@@ -35,7 +35,6 @@ export type GamePhase =
   | 'setup'           // Setting up players
   | 'drawing'         // Current player is drawing cards
   | 'selecting'       // Players are selecting cards from in-play zone
-  | 'shopping'        // Players are buying from the shop
   | 'discarding'      // Leftover cards being discarded
   | 'ended';          // Game over
 
@@ -43,12 +42,9 @@ export interface GameState {
   players: Player[];
   currentPlayerIndex: number;      // Player whose turn it is (draws cards)
   selectingPlayerIndex: number;    // Player currently selecting a card
-  shoppingPlayerIndex: number;     // Player currently shopping
   deck: Card[];
   bossDeck: Card[];                // Separate deck for boss encounters
-  shopDeck: Card[];                // Deck of shop items
   inPlayZone: Card[];
-  shopZone: Card[];                // Shop items available for purchase
   discardPile: Card[];
   phase: GamePhase;
   winner: Player | null;
@@ -62,7 +58,6 @@ export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 6;
 export const MAX_TURNS = 50;
 export const BOSS_FIGHT_INTERVAL = 10; // Boss fight every 10 turns
-export const SHOP_INTERVAL = 5;        // Shop round every 5 turns
 
 export const PLAYER_COLORS = [
   '#EF4444', // red

@@ -7,8 +7,6 @@ import {
   drawCards,
   selectCard,
   discardRemainingCards,
-  buyShopItem,
-  skipShopTurn,
 } from '@/lib/gameUtils';
 
 interface GameContextType {
@@ -17,8 +15,6 @@ interface GameContextType {
   handleDrawCards: () => void;
   handleSelectCard: (cardId: string) => void;
   handleDiscard: () => void;
-  handleBuyShopItem: (shopItemId: string, tradeInCardIds: string[]) => void;
-  handleSkipShopTurn: () => void;
   resetGame: () => void;
 }
 
@@ -47,16 +43,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameState(discardRemainingCards(gameState));
   }, [gameState]);
 
-  const handleBuyShopItem = useCallback((shopItemId: string, tradeInCardIds: string[]) => {
-    if (!gameState || gameState.phase !== 'shopping') return;
-    setGameState(buyShopItem(gameState, shopItemId, tradeInCardIds));
-  }, [gameState]);
-
-  const handleSkipShopTurn = useCallback(() => {
-    if (!gameState || gameState.phase !== 'shopping') return;
-    setGameState(skipShopTurn(gameState));
-  }, [gameState]);
-
   const resetGame = useCallback(() => {
     setGameState(null);
   }, []);
@@ -69,8 +55,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
         handleDrawCards,
         handleSelectCard,
         handleDiscard,
-        handleBuyShopItem,
-        handleSkipShopTurn,
         resetGame,
       }}
     >

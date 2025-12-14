@@ -6,7 +6,6 @@ interface PlayerScoreboardProps {
   players: Player[];
   currentPlayerIndex: number;
   selectingPlayerIndex: number;
-  shoppingPlayerIndex: number;
   phase: string;
 }
 
@@ -14,7 +13,6 @@ export function PlayerScoreboard({
   players,
   currentPlayerIndex,
   selectingPlayerIndex,
-  shoppingPlayerIndex,
   phase,
 }: PlayerScoreboardProps) {
   return (
@@ -22,7 +20,6 @@ export function PlayerScoreboard({
       {players.map((player, index) => {
         const isCurrentTurn = index === currentPlayerIndex;
         const isSelecting = index === selectingPlayerIndex && phase === 'selecting';
-        const isShopping = index === shoppingPlayerIndex && phase === 'shopping';
         const progressPercent = Math.min((player.points / WINNING_SCORE) * 100, 100);
 
         return (
@@ -33,11 +30,9 @@ export function PlayerScoreboard({
               transition-all duration-300
               ${isSelecting
                 ? 'ring-4 ring-yellow-400 scale-105 shadow-yellow-400/50'
-                : isShopping
-                  ? 'ring-4 ring-green-400 scale-105 shadow-green-400/50'
-                  : isCurrentTurn
-                    ? 'ring-2 ring-white/50'
-                    : ''
+                : isCurrentTurn
+                  ? 'ring-2 ring-white/50'
+                  : ''
               }
             `}
             style={{ backgroundColor: player.color }}
@@ -47,12 +42,7 @@ export function PlayerScoreboard({
                 Picking
               </div>
             )}
-            {isShopping && (
-              <div className="absolute -top-2 -right-2 bg-green-400 text-green-900 text-xs font-bold px-2 py-1 rounded-full animate-pulse">
-                Shopping
-              </div>
-            )}
-            {isCurrentTurn && !isSelecting && !isShopping && (
+            {isCurrentTurn && !isSelecting && (
               <div className="absolute -top-2 -right-2 bg-white text-gray-700 text-xs font-bold px-2 py-1 rounded-full">
                 Turn
               </div>
