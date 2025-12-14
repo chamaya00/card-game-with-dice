@@ -35,16 +35,32 @@ export function Card({ card, onClick, selectable = false, small = false }: CardP
       <div className="text-white font-bold text-center drop-shadow-md">
         {card.name}
       </div>
-      <div
-        className={`
-          ${small ? 'w-8 h-8 text-lg' : 'w-16 h-16 text-3xl'}
-          bg-white/90 rounded-full flex items-center justify-center
-          font-bold shadow-inner
-        `}
-        style={{ color: card.color }}
-      >
-        {card.value}
-      </div>
+
+      {/* Monster stats display */}
+      {card.isMonster && (
+        <div className={`flex gap-1 ${small ? 'text-[10px]' : 'text-sm'}`}>
+          <div className="bg-red-600/90 text-white px-2 py-1 rounded font-bold shadow-inner">
+            ⚔️ {card.strength}
+          </div>
+          <div className="bg-blue-600/90 text-white px-2 py-1 rounded font-bold shadow-inner">
+            🛡️ {card.defense}
+          </div>
+        </div>
+      )}
+
+      {/* Point value badge */}
+      {card.isMonster && card.pointValue && (
+        <div
+          className={`
+            ${small ? 'w-6 h-6 text-xs' : 'w-8 h-8 text-sm'}
+            bg-yellow-400 rounded-full flex items-center justify-center
+            font-bold shadow-md border-2 border-yellow-600
+          `}
+        >
+          {card.pointValue}
+        </div>
+      )}
+
       <div className="text-white/80 text-center text-[10px] leading-tight px-1">
         {small ? '' : card.description}
       </div>
