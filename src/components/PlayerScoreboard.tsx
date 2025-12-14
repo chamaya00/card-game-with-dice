@@ -61,6 +61,16 @@ export function PlayerScoreboard({
               </div>
             </div>
 
+            {/* Player combat stats */}
+            <div className="flex gap-2 mt-2">
+              <div className="bg-red-600/60 text-white px-2 py-1 rounded text-xs font-bold">
+                ⚔️ {player.strength}
+              </div>
+              <div className="bg-blue-600/60 text-white px-2 py-1 rounded text-xs font-bold">
+                🛡️ {player.defense}
+              </div>
+            </div>
+
             {/* Progress bar */}
             <div className="mt-2 h-2 bg-black/20 rounded-full overflow-hidden">
               <div

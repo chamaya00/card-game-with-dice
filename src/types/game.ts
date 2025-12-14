@@ -2,8 +2,12 @@ export interface Card {
   id: string;
   name: string;
   description: string;
-  value: number;
   color: string;
+  // Monster card properties
+  isMonster: boolean;
+  strength?: number;    // 1-10 for monsters
+  defense?: number;     // 1-10 for monsters
+  pointValue?: number;  // 1-3 for monsters
 }
 
 export interface Player {
@@ -12,6 +16,8 @@ export interface Player {
   points: number;
   hand: Card[];
   color: string;
+  strength: number;  // Player strength for combat
+  defense: number;   // Player defense for combat
 }
 
 export type GamePhase =

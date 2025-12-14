@@ -8,26 +8,34 @@ const CARD_COLORS = [
   '#9333EA', // purple
 ];
 
-const CARD_NAMES = [
-  'Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon',
-  'Zeta', 'Eta', 'Theta', 'Iota', 'Kappa',
-  'Lambda', 'Mu', 'Nu', 'Xi', 'Omicron',
-  'Pi', 'Rho', 'Sigma', 'Tau', 'Upsilon',
+const MONSTER_NAMES = [
+  'Goblin', 'Orc', 'Troll', 'Dragon', 'Skeleton',
+  'Zombie', 'Ghost', 'Vampire', 'Werewolf', 'Demon',
+  'Spider', 'Rat', 'Bat', 'Snake', 'Wolf',
+  'Bear', 'Minotaur', 'Harpy', 'Medusa', 'Cyclops',
 ];
 
 export function generateDeck(): Card[] {
   const deck: Card[] = [];
   let id = 0;
 
-  // Create 60 cards (4 copies of each name, spread across colors)
+  // Create monster cards (3 copies of each monster)
   for (let copy = 0; copy < 3; copy++) {
-    for (let i = 0; i < CARD_NAMES.length; i++) {
+    for (let i = 0; i < MONSTER_NAMES.length; i++) {
+      // Vary the difficulty - some monsters are tougher than others
+      const baseStrength = (i % 10) + 1;  // 1-10
+      const baseDefense = (i % 10) + 1;   // 1-10
+      const pointValue = Math.min(Math.floor(baseStrength / 3) + 1, 3); // 1-3 based on strength
+
       deck.push({
         id: `card-${id++}`,
-        name: CARD_NAMES[i],
-        description: `A mysterious ${CARD_NAMES[i]} card`,
-        value: (i % 5) + 1, // Values 1-5
+        name: MONSTER_NAMES[i],
+        description: `A fearsome ${MONSTER_NAMES[i]}`,
         color: CARD_COLORS[i % CARD_COLORS.length],
+        isMonster: true,
+        strength: baseStrength,
+        defense: baseDefense,
+        pointValue: pointValue,
       });
     }
   }
@@ -51,6 +59,8 @@ export function createPlayer(id: string, name: string, index: number): Player {
     points: 0,
     hand: [],
     color: PLAYER_COLORS[index % PLAYER_COLORS.length],
+    strength: 1,  // All players start with strength 1
+    defense: 1,   // All players start with defense 1
   };
 }
 
@@ -107,18 +117,71 @@ export function selectCard(state: GameState, cardId: string): GameState {
 
   const selectingPlayer = state.players[state.selectingPlayerIndex];
 
-  // Add card to player's hand and add points (for now, points = card value)
-  const updatedPlayers = state.players.map(p => {
-    if (p.id === selectingPlayer.id) {
-      const newPoints = p.points + card.value;
-      return {
-        ...p,
-        hand: [...p.hand, card],
-        points: newPoints,
-      };
+  // Combat logic for monster cards
+  let updatedPlayers = state.players;
+  let combatResult: 'victory' | 'defeat' | null = null;
+
+  if (card.isMonster && card.strength !== undefined && card.defense !== undefined) {
+    const playerStrength = selectingPlayer.strength;
+    const playerDefense = selectingPlayer.defense;
+    const monsterStrength = card.strength;
+    const monsterDefense = card.defense;
+
+    // Player defeats monster if their strength > monster defense
+    if (playerStrength > monsterDefense) {
+      combatResult = 'victory';
+      // Add card to hand and award points
+      updatedPlayers = state.players.map(p => {
+        if (p.id === selectingPlayer.id) {
+          const pointsGained = card.pointValue || 0;
+          return {
+            ...p,
+            hand: [...p.hand, card],
+            points: p.points + pointsGained,
+          };
+        }
+        return p;
+      });
     }
-    return p;
-  });
+    // Player is defeated if their strength <= monster defense AND monster strength > their defense
+    else if (playerStrength <= monsterDefense && monsterStrength > playerDefense) {
+      combatResult = 'defeat';
+      // Player gets the card but no points (they were defeated)
+      updatedPlayers = state.players.map(p => {
+        if (p.id === selectingPlayer.id) {
+          return {
+            ...p,
+            hand: [...p.hand, card],
+          };
+        }
+        return p;
+      });
+    }
+    // Stalemate - neither player nor monster wins
+    else {
+      // Player gets the card but no points
+      updatedPlayers = state.players.map(p => {
+        if (p.id === selectingPlayer.id) {
+          return {
+            ...p,
+            hand: [...p.hand, card],
+          };
+        }
+        return p;
+      });
+    }
+  } else {
+    // Non-monster cards (if any exist in future)
+    updatedPlayers = state.players.map(p => {
+      if (p.id === selectingPlayer.id) {
+        return {
+          ...p,
+          hand: [...p.hand, card],
+        };
+      }
+      return p;
+    });
+  }
 
   // Remove card from in-play zone
   const updatedInPlayZone = state.inPlayZone.filter(c => c.id !== cardId);
