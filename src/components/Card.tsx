@@ -22,17 +22,29 @@ export function Card({ card, onClick, selectable = false, small = false }: CardP
         rounded-xl shadow-lg
         flex flex-col items-center justify-between
         p-2 transition-all duration-200
+        relative
         ${selectable
           ? 'cursor-pointer hover:scale-105 hover:shadow-xl hover:-translate-y-2'
           : ''
         }
+        ${card.isBoss ? 'shadow-red-500/50 shadow-2xl' : ''}
       `}
       style={{
         backgroundColor: card.color,
-        border: '3px solid rgba(255,255,255,0.3)',
+        border: card.isBoss
+          ? '4px solid #FFD700'
+          : '3px solid rgba(255,255,255,0.3)',
+        boxShadow: card.isBoss
+          ? '0 0 20px rgba(255, 0, 0, 0.5), 0 0 40px rgba(255, 215, 0, 0.3)'
+          : undefined,
       }}
     >
-      <div className="text-white font-bold text-center drop-shadow-md">
+      {card.isBoss && (
+        <div className={`${small ? 'text-xs' : 'text-sm'} bg-yellow-500 text-black px-2 py-0.5 rounded-full font-bold shadow-md absolute -top-2`}>
+          BOSS
+        </div>
+      )}
+      <div className={`text-white font-bold text-center drop-shadow-md ${card.isBoss ? 'mt-2' : ''}`}>
         {card.name}
       </div>
 

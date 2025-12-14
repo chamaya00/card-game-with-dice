@@ -5,9 +5,10 @@ export interface Card {
   color: string;
   // Monster card properties
   isMonster: boolean;
-  strength?: number;    // 1-10 for monsters
-  defense?: number;     // 1-10 for monsters
-  pointValue?: number;  // 1-3 for monsters
+  isBoss?: boolean;     // Boss monsters for special encounters
+  strength?: number;    // 1-10 for monsters, 10-20 for bosses
+  defense?: number;     // 1-10 for monsters, 10-20 for bosses
+  pointValue?: number;  // 1-3 for monsters, 5-10 for bosses
 }
 
 export interface Player {
@@ -32,16 +33,21 @@ export interface GameState {
   currentPlayerIndex: number;      // Player whose turn it is (draws cards)
   selectingPlayerIndex: number;    // Player currently selecting a card
   deck: Card[];
+  bossDeck: Card[];                // Separate deck for boss encounters
   inPlayZone: Card[];
   discardPile: Card[];
   phase: GamePhase;
   winner: Player | null;
   turnNumber: number;
+  bossDefeated: boolean;          // Track if current boss was defeated
+  gameOver: boolean;               // Game over due to undefeated boss
 }
 
 export const WINNING_SCORE = 10;
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 6;
+export const MAX_TURNS = 50;
+export const BOSS_FIGHT_INTERVAL = 10; // Boss fight every 10 turns
 
 export const PLAYER_COLORS = [
   '#EF4444', // red
