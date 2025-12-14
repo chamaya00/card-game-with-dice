@@ -3,7 +3,7 @@
 import { Player } from '@/types/game';
 
 interface GameOverProps {
-  winner: Player;
+  winner: Player | null;
   players: Player[];
   onPlayAgain: () => void;
 }
@@ -14,19 +14,31 @@ export function GameOver({ winner, players, onPlayAgain }: GameOverProps) {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-        {/* Winner Banner */}
-        <div
-          className="py-8 px-6 text-center"
-          style={{ backgroundColor: winner.color }}
-        >
-          <div className="text-6xl mb-4">&#127942;</div>
-          <h2 className="text-3xl font-bold text-white mb-2">
-            {winner.name} Wins!
-          </h2>
-          <p className="text-white/80 text-lg">
-            with {winner.points} points
-          </p>
-        </div>
+        {/* Winner/Game Over Banner */}
+        {winner ? (
+          <div
+            className="py-8 px-6 text-center"
+            style={{ backgroundColor: winner.color }}
+          >
+            <div className="text-6xl mb-4">&#127942;</div>
+            <h2 className="text-3xl font-bold text-white mb-2">
+              {winner.name} Wins!
+            </h2>
+            <p className="text-white/80 text-lg">
+              with {winner.points} points
+            </p>
+          </div>
+        ) : (
+          <div className="py-8 px-6 text-center bg-red-600">
+            <div className="text-6xl mb-4">&#128128;</div>
+            <h2 className="text-3xl font-bold text-white mb-2">
+              Game Over!
+            </h2>
+            <p className="text-white/80 text-lg">
+              The boss was not defeated
+            </p>
+          </div>
+        )}
 
         {/* Scoreboard */}
         <div className="p-6">

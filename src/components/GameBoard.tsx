@@ -5,6 +5,7 @@ import { PlayerScoreboard } from './PlayerScoreboard';
 import { InPlayZone } from './InPlayZone';
 import { DeckDisplay } from './DeckDisplay';
 import { GameOver } from './GameOver';
+import { BOSS_FIGHT_INTERVAL } from '@/types/game';
 
 export function GameBoard() {
   const {
@@ -27,10 +28,12 @@ export function GameBoard() {
     phase,
     winner,
     turnNumber,
+    gameOver,
   } = gameState;
 
   const currentPlayer = players[currentPlayerIndex];
   const selectingPlayer = players[selectingPlayerIndex];
+  const isBossFight = turnNumber % BOSS_FIGHT_INTERVAL === 0;
 
   // Auto-discard when in discarding phase
   if (phase === 'discarding') {
@@ -39,8 +42,8 @@ export function GameBoard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-800 to-emerald-950 p-4">
-      {/* Winner Overlay */}
-      {winner && (
+      {/* Winner/Game Over Overlay */}
+      {(winner || gameOver) && (
         <GameOver
           winner={winner}
           players={players}
@@ -53,7 +56,14 @@ export function GameBoard() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-white">Card Game</h1>
           <div className="flex items-center gap-4">
-            <span className="text-white/70">Turn {turnNumber}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-white/70">Turn {turnNumber}</span>
+              {isBossFight && (
+                <span className="px-3 py-1 bg-red-600 text-white rounded-full text-xs font-bold animate-pulse">
+                  BOSS FIGHT!
+                </span>
+              )}
+            </div>
             <button
               onClick={resetGame}
               className="px-4 py-2 bg-red-500/20 text-red-300 rounded-lg
@@ -75,12 +85,25 @@ export function GameBoard() {
         {/* Game Status */}
         <div className="text-center py-4">
           {phase === 'drawing' && (
-            <p className="text-white text-lg">
-              <span className="font-bold" style={{ color: currentPlayer.color }}>
-                {currentPlayer.name}
-              </span>
-              , draw {players.length + 1} cards to start your turn!
-            </p>
+            <div>
+              {isBossFight ? (
+                <p className="text-white text-lg">
+                  <span className="font-bold text-red-400">BOSS FIGHT!</span>
+                  {' '}
+                  <span className="font-bold" style={{ color: currentPlayer.color }}>
+                    {currentPlayer.name}
+                  </span>
+                  , draw 1 boss card + {players.length} regular cards!
+                </p>
+              ) : (
+                <p className="text-white text-lg">
+                  <span className="font-bold" style={{ color: currentPlayer.color }}>
+                    {currentPlayer.name}
+                  </span>
+                  , draw {players.length + 1} cards to start your turn!
+                </p>
+              )}
+            </div>
           )}
           {phase === 'selecting' && (
             <p className="text-white text-lg">
