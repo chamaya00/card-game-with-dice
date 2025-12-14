@@ -34,8 +34,8 @@ export function generateDeck(): Card[] {
   for (let copy = 0; copy < 3; copy++) {
     for (let i = 0; i < MONSTER_NAMES.length; i++) {
       // Vary the difficulty - some monsters are tougher than others
-      const baseStrength = (i % 10) + 1;  // 1-10
-      const baseDefense = (i % 10) + 1;   // 1-10
+      const baseStrength = (i % 2) + 1;  // 1-2 (reduced for testing)
+      const baseDefense = (i % 3) + 1;   // 1-3 (reduced for testing)
       const pointValue = Math.min(Math.floor(baseStrength / 3) + 1, 3); // 1-3 based on strength
 
       deck.push({
