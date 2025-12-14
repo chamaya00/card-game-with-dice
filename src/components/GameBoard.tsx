@@ -5,7 +5,8 @@ import { PlayerScoreboard } from './PlayerScoreboard';
 import { InPlayZone } from './InPlayZone';
 import { DeckDisplay } from './DeckDisplay';
 import { GameOver } from './GameOver';
-import { BOSS_FIGHT_INTERVAL } from '@/types/game';
+import { ShopZone } from './ShopZone';
+import { BOSS_FIGHT_INTERVAL, SHOP_INTERVAL } from '@/types/game';
 
 export function GameBoard() {
   const {
@@ -13,6 +14,8 @@ export function GameBoard() {
     handleDrawCards,
     handleSelectCard,
     handleDiscard,
+    handleBuyShopItem,
+    handleSkipShopTurn,
     resetGame,
   } = useGame();
 
@@ -22,8 +25,10 @@ export function GameBoard() {
     players,
     currentPlayerIndex,
     selectingPlayerIndex,
+    shoppingPlayerIndex,
     deck,
     inPlayZone,
+    shopZone,
     discardPile,
     phase,
     winner,
@@ -33,7 +38,9 @@ export function GameBoard() {
 
   const currentPlayer = players[currentPlayerIndex];
   const selectingPlayer = players[selectingPlayerIndex];
+  const shoppingPlayer = players[shoppingPlayerIndex];
   const isBossFight = turnNumber % BOSS_FIGHT_INTERVAL === 0;
+  const isShopRound = turnNumber % SHOP_INTERVAL === 0;
 
   // Auto-discard when in discarding phase
   if (phase === 'discarding') {
@@ -79,6 +86,7 @@ export function GameBoard() {
           players={players}
           currentPlayerIndex={currentPlayerIndex}
           selectingPlayerIndex={selectingPlayerIndex}
+          shoppingPlayerIndex={shoppingPlayerIndex}
           phase={phase}
         />
 
@@ -86,6 +94,11 @@ export function GameBoard() {
         <div className="text-center py-4">
           {phase === 'drawing' && (
             <div>
+              {currentPlayer.skipNextTurn && (
+                <p className="text-red-400 text-lg font-bold mb-2 animate-pulse">
+                  ⚠️ {currentPlayer.name} is skipping this turn (defeated by monster)
+                </p>
+              )}
               {isBossFight ? (
                 <p className="text-white text-lg">
                   <span className="font-bold text-red-400">BOSS FIGHT!</span>
@@ -94,6 +107,12 @@ export function GameBoard() {
                     {currentPlayer.name}
                   </span>
                   , draw 1 boss card + {players.length} regular cards!
+                </p>
+              ) : isShopRound ? (
+                <p className="text-white text-lg">
+                  <span className="font-bold text-yellow-400">🛒 SHOP ROUND!</span>
+                  {' '}
+                  Players will be able to buy equipment after this round!
                 </p>
               ) : (
                 <p className="text-white text-lg">
@@ -113,6 +132,15 @@ export function GameBoard() {
               </span>
             </p>
           )}
+          {phase === 'shopping' && (
+            <p className="text-yellow-400 text-lg">
+              🛒 Shop Round!
+              <span className="font-bold ml-2" style={{ color: shoppingPlayer.color }}>
+                {shoppingPlayer.name}
+              </span>
+              &apos;s turn to shop
+            </p>
+          )}
           {phase === 'discarding' && (
             <p className="text-yellow-300 text-lg animate-pulse">
               Discarding remaining {inPlayZone.length} card(s)...
@@ -122,29 +150,41 @@ export function GameBoard() {
 
         {/* Main Game Area */}
         <div className="bg-black/20 rounded-2xl p-6">
-          {/* In Play Zone */}
-          <div className="mb-8">
-            <h2 className="text-white/70 text-sm font-medium mb-4 text-center uppercase tracking-wider">
-              In Play Zone
-            </h2>
-            <InPlayZone
-              cards={inPlayZone}
-              onSelectCard={handleSelectCard}
-              canSelect={phase === 'selecting'}
-              selectingPlayerName={selectingPlayer.name}
+          {phase === 'shopping' ? (
+            /* Shop Zone */
+            <ShopZone
+              shopCards={shopZone}
+              shoppingPlayer={shoppingPlayer}
+              onBuyItem={handleBuyShopItem}
+              onSkipTurn={handleSkipShopTurn}
             />
-          </div>
+          ) : (
+            <>
+              {/* In Play Zone */}
+              <div className="mb-8">
+                <h2 className="text-white/70 text-sm font-medium mb-4 text-center uppercase tracking-wider">
+                  In Play Zone
+                </h2>
+                <InPlayZone
+                  cards={inPlayZone}
+                  onSelectCard={handleSelectCard}
+                  canSelect={phase === 'selecting'}
+                  selectingPlayerName={selectingPlayer.name}
+                />
+              </div>
 
-          {/* Deck and Discard */}
-          <div className="border-t border-white/10 pt-6">
-            <DeckDisplay
-              deckCount={deck.length}
-              discardPile={discardPile}
-              onDrawCards={handleDrawCards}
-              canDraw={phase === 'drawing'}
-              currentPlayerName={currentPlayer.name}
-            />
-          </div>
+              {/* Deck and Discard */}
+              <div className="border-t border-white/10 pt-6">
+                <DeckDisplay
+                  deckCount={deck.length}
+                  discardPile={discardPile}
+                  onDrawCards={handleDrawCards}
+                  canDraw={phase === 'drawing'}
+                  currentPlayerName={currentPlayer.name}
+                />
+              </div>
+            </>
+          )}
         </div>
 
         {/* Game Rules Reminder */}
