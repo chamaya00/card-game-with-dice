@@ -168,3 +168,45 @@ export function getTotalGauntletPoints(): number {
 export function getTotalGauntletGold(): number {
   return monsterTemplates.reduce((sum, template) => sum + template.goldReward, 0);
 }
+
+/**
+ * Check if a monster has been defeated (all numbers crossed off)
+ * @param monster - The monster to check
+ * @returns True if all numbers have been hit
+ */
+export function isMonsterDefeated(monster: Monster): boolean {
+  return monster.remainingNumbers.length === 0;
+}
+
+/**
+ * Get the numbers that have been hit on a monster
+ * @param monster - The monster to check
+ * @returns Array of numbers that have been crossed off
+ */
+export function getHitNumbers(monster: Monster): number[] {
+  return monster.numbersToHit.filter(
+    (num) => !monster.remainingNumbers.includes(num)
+  );
+}
+
+/**
+ * Get the count of remaining numbers on a monster
+ * @param monster - The monster to check
+ * @returns Number of hits still needed to defeat the monster
+ */
+export function getRemainingHitCount(monster: Monster): number {
+  return monster.remainingNumbers.length;
+}
+
+/**
+ * Get monster difficulty description based on number count
+ * @param monster - The monster to evaluate
+ * @returns A difficulty string
+ */
+export function getMonsterDifficulty(monster: Monster): "Easy" | "Medium" | "Hard" | "Boss" {
+  if (monster.type === "BOSS") return "Boss";
+  const count = monster.numbersToHit.length;
+  if (count <= 2) return "Easy";
+  if (count <= 4) return "Medium";
+  return "Hard";
+}
