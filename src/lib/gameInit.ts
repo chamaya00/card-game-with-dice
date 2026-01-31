@@ -42,49 +42,74 @@ export function createPlayers(names: string[]): Player[] {
   return names.map((name, index) => createPlayer(name, index));
 }
 
+// ============================================
+// Validation Types
+// ============================================
+
+export interface ValidationError {
+  message: string;
+  playerIndex?: number;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+}
+
 /**
  * Validates player names for game initialization
  * @param names - Array of player names to validate
- * @returns Object with isValid boolean and optional error message
+ * @returns ValidationResult with isValid boolean and array of errors
  */
-export function validatePlayerNames(names: string[]): {
-  isValid: boolean;
-  error?: string;
-} {
+export function validatePlayerNames(names: string[]): ValidationResult {
+  const errors: ValidationError[] = [];
+
   // Check player count
   if (names.length < MIN_PLAYERS) {
-    return {
-      isValid: false,
-      error: `Minimum ${MIN_PLAYERS} players required`,
-    };
+    errors.push({
+      message: `Minimum ${MIN_PLAYERS} players required`,
+    });
   }
 
   if (names.length > MAX_PLAYERS) {
-    return {
-      isValid: false,
-      error: `Maximum ${MAX_PLAYERS} players allowed`,
-    };
+    errors.push({
+      message: `Maximum ${MAX_PLAYERS} players allowed`,
+    });
   }
 
   // Check for empty names
   const trimmedNames = names.map((n) => n.trim());
-  if (trimmedNames.some((name) => name.length === 0)) {
-    return {
-      isValid: false,
-      error: "All players must have a name",
-    };
-  }
+  trimmedNames.forEach((name, index) => {
+    if (name.length === 0) {
+      errors.push({
+        message: "Name cannot be empty",
+        playerIndex: index,
+      });
+    }
+  });
 
-  // Check for duplicate names
-  const uniqueNames = new Set(trimmedNames.map((n) => n.toLowerCase()));
-  if (uniqueNames.size !== trimmedNames.length) {
-    return {
-      isValid: false,
-      error: "All player names must be unique",
-    };
-  }
+  // Check for duplicate names (case-insensitive)
+  const seenNames = new Map<string, number>();
+  trimmedNames.forEach((name, index) => {
+    if (name.length === 0) return; // Skip empty names (already handled)
 
-  return { isValid: true };
+    const lowerName = name.toLowerCase();
+    const previousIndex = seenNames.get(lowerName);
+
+    if (previousIndex !== undefined) {
+      errors.push({
+        message: `Duplicate name (same as Player ${previousIndex + 1})`,
+        playerIndex: index,
+      });
+    } else {
+      seenNames.set(lowerName, index);
+    }
+  });
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
 }
 
 // ============================================
@@ -144,7 +169,8 @@ export function initializeGame(playerNames: string[]): GameState {
   // Validate player names
   const validation = validatePlayerNames(playerNames);
   if (!validation.isValid) {
-    throw new Error(validation.error);
+    const errorMessages = validation.errors.map((e) => e.message).join("; ");
+    throw new Error(errorMessages);
   }
 
   // Create players
