@@ -29,6 +29,11 @@ import { calculateCrapOutLoss } from "@/lib/gold";
 import {
   processComeOutNatural,
   processComeOutCraps,
+  processPointPhaseHit,
+  processMonsterDefeated,
+  processCrapOut,
+  processEscape,
+  calculateShooterWinnings,
   type BetResolutionResult,
 } from "@/lib/betting";
 
@@ -78,6 +83,22 @@ interface GameContextValue {
   handleComeOutNatural: () => BetResolutionResult[];
   handleComeOutCraps: () => BetResolutionResult[];
 
+  // Point Phase Actions
+  handlePointPhaseHit: (hitNumber: number) => BetResolutionResult[];
+  handlePointHit: () => { remainingNumbers: number[] };
+  handleNumberSelected: (number: number) => void;
+  handleMonsterDefeated: () => {
+    betResults: BetResolutionResult[];
+    cardDrawn: Card | null;
+    shooterWinnings: number;
+  };
+  handleEscape: () => { betResults: BetResolutionResult[] };
+  handlePointPhaseCrapOut: () => {
+    betResults: BetResolutionResult[];
+    goldLost: number;
+  };
+  handleRevive: () => void;
+
   // Utility
   getActivePlayer: () => Player | null;
   getCurrentMonster: () => Monster | null;
@@ -112,7 +133,11 @@ type GameAction =
   | { type: "DRAW_RANDOM_CARD"; playerId: string; card: Card }
   | { type: "APPLY_BET_RESOLUTION"; results: BetResolutionResult[] }
   | { type: "APPLY_CRAP_OUT_PENALTY"; playerId: string; goldLost: number }
-  | { type: "AWARD_MONSTER_REWARDS"; playerId: string; points: number; gold: number };
+  | { type: "AWARD_MONSTER_REWARDS"; playerId: string; points: number; gold: number }
+  | { type: "DISCARD_HAND"; playerId: string }
+  | { type: "ADD_PLAYER_DAMAGE"; playerId: string; damage: number }
+  | { type: "ADD_GOLD_TO_PLAYER"; playerId: string; amount: number }
+  | { type: "RESET_TURN_DAMAGE" };
 
 // ============================================
 // Reducer
@@ -491,6 +516,70 @@ function gameReducer(
       };
     }
 
+    case "DISCARD_HAND": {
+      if (!state) return null;
+      const { playerId } = action;
+
+      return {
+        ...state,
+        players: state.players.map((player) =>
+          player.id === playerId
+            ? {
+                ...player,
+                permanentCards: [],
+                singleUseCards: [],
+              }
+            : player
+        ),
+      };
+    }
+
+    case "ADD_PLAYER_DAMAGE": {
+      if (!state) return null;
+      const { playerId, damage } = action;
+
+      return {
+        ...state,
+        players: state.players.map((player) =>
+          player.id === playerId
+            ? {
+                ...player,
+                damageCount: player.damageCount + damage,
+              }
+            : player
+        ),
+      };
+    }
+
+    case "ADD_GOLD_TO_PLAYER": {
+      if (!state) return null;
+      const { playerId, amount } = action;
+
+      return {
+        ...state,
+        players: state.players.map((player) =>
+          player.id === playerId
+            ? {
+                ...player,
+                gold: player.gold + amount,
+              }
+            : player
+        ),
+      };
+    }
+
+    case "RESET_TURN_DAMAGE": {
+      if (!state) return null;
+
+      return {
+        ...state,
+        turnState: {
+          ...state.turnState,
+          turnDamage: 0,
+        },
+      };
+    }
+
     default:
       return state;
   }
@@ -673,6 +762,187 @@ export function GameProvider({ children }: GameProviderProps) {
     return betResults;
   }, [state]);
 
+  // Point Phase Actions
+  const handlePointPhaseHit = useCallback(
+    (hitNumber: number): BetResolutionResult[] => {
+      if (!state) return [];
+
+      // Hit the monster number
+      dispatch({ type: "HIT_MONSTER_NUMBER", number: hitNumber });
+
+      // Add turn damage
+      dispatch({ type: "ADD_TURN_DAMAGE", amount: 1 });
+
+      // Increment roll count
+      dispatch({ type: "INCREMENT_ROLL_COUNT" });
+
+      // Process bet payouts - FOR bettors gain +1 gold each
+      const betResults = processPointPhaseHit(state.bets);
+
+      // Apply bet payouts (just the +1 gold to FOR bettors, not resolving bets)
+      for (const result of betResults) {
+        if (result.goldChange > 0) {
+          dispatch({
+            type: "ADD_GOLD_TO_PLAYER",
+            playerId: result.playerId,
+            amount: result.goldChange,
+          });
+        }
+      }
+
+      return betResults;
+    },
+    [state]
+  );
+
+  const handlePointHit = useCallback((): { remainingNumbers: number[] } => {
+    if (!state) return { remainingNumbers: [] };
+
+    const currentMonster = state.monsters[state.currentMonsterIndex];
+
+    // Increment roll count
+    dispatch({ type: "INCREMENT_ROLL_COUNT" });
+
+    // Return remaining numbers for player to choose from
+    return { remainingNumbers: [...currentMonster.remainingNumbers] };
+  }, [state]);
+
+  const handleNumberSelected = useCallback((number: number): void => {
+    if (!state) return;
+
+    // Hit the selected monster number
+    dispatch({ type: "HIT_MONSTER_NUMBER", number });
+
+    // Add turn damage
+    dispatch({ type: "ADD_TURN_DAMAGE", amount: 1 });
+
+    // Process bet payouts for point hit - FOR bettors gain +1 gold each
+    const betResults = processPointPhaseHit(state.bets);
+    for (const result of betResults) {
+      if (result.goldChange > 0) {
+        dispatch({
+          type: "ADD_GOLD_TO_PLAYER",
+          playerId: result.playerId,
+          amount: result.goldChange,
+        });
+      }
+    }
+  }, [state]);
+
+  const handleMonsterDefeated = useCallback((): {
+    betResults: BetResolutionResult[];
+    cardDrawn: Card | null;
+    shooterWinnings: number;
+  } => {
+    if (!state) return { betResults: [], cardDrawn: null, shooterWinnings: 0 };
+
+    const activePlayer = state.players[state.currentPlayerIndex];
+    const currentMonster = state.monsters[state.currentMonsterIndex];
+
+    // Calculate shooter winnings from AGAINST bets
+    const shooterWinnings = calculateShooterWinnings(state.bets);
+
+    // Process bet resolution - FOR bets returned, AGAINST bets lost (go to shooter)
+    const betResults = processMonsterDefeated(state.bets, state.turnState.turnDamage);
+    dispatch({ type: "APPLY_BET_RESOLUTION", results: betResults });
+
+    // Award shooter winnings from AGAINST bets
+    if (shooterWinnings > 0) {
+      dispatch({
+        type: "ADD_GOLD_TO_PLAYER",
+        playerId: activePlayer.id,
+        amount: shooterWinnings,
+      });
+    }
+
+    // Defeat the monster (mark all remaining numbers as hit)
+    dispatch({ type: "DEFEAT_MONSTER" });
+
+    // Add turn damage to player's cumulative damage
+    dispatch({
+      type: "ADD_PLAYER_DAMAGE",
+      playerId: activePlayer.id,
+      damage: state.turnState.turnDamage,
+    });
+
+    // Award monster points and gold to shooter
+    dispatch({
+      type: "AWARD_MONSTER_REWARDS",
+      playerId: activePlayer.id,
+      points: currentMonster.points,
+      gold: currentMonster.goldReward,
+    });
+
+    // Draw a random card for the shooter
+    let cardDrawn: Card | null = null;
+    if (state.cardDeck.length > 0) {
+      const randomIndex = Math.floor(Math.random() * state.cardDeck.length);
+      cardDrawn = state.cardDeck[randomIndex];
+      dispatch({ type: "DRAW_RANDOM_CARD", playerId: activePlayer.id, card: cardDrawn });
+    }
+
+    return { betResults, cardDrawn, shooterWinnings };
+  }, [state]);
+
+  const handleEscape = useCallback((): { betResults: BetResolutionResult[] } => {
+    if (!state) return { betResults: [] };
+
+    // Process bet resolution - all bets returned
+    const betResults = processEscape(state.bets);
+    dispatch({ type: "APPLY_BET_RESOLUTION", results: betResults });
+
+    // Reset turn damage (escape means no damage counted)
+    dispatch({ type: "RESET_TURN_DAMAGE" });
+
+    return { betResults };
+  }, [state]);
+
+  const handlePointPhaseCrapOut = useCallback((): {
+    betResults: BetResolutionResult[];
+    goldLost: number;
+  } => {
+    if (!state) return { betResults: [], goldLost: 0 };
+
+    const activePlayer = state.players[state.currentPlayerIndex];
+
+    // Increment roll count
+    dispatch({ type: "INCREMENT_ROLL_COUNT" });
+
+    // Process bet resolution - FOR bets lost, AGAINST doubled
+    const betResults = processCrapOut(state.bets);
+    dispatch({ type: "APPLY_BET_RESOLUTION", results: betResults });
+
+    // Apply crap-out penalty (50% gold loss)
+    const goldLost = calculateCrapOutLoss(activePlayer.gold);
+    if (goldLost > 0) {
+      dispatch({
+        type: "APPLY_CRAP_OUT_PENALTY",
+        playerId: activePlayer.id,
+        goldLost,
+      });
+    }
+
+    // Reset monster to pre-turn state
+    dispatch({ type: "RESET_MONSTER_TO_TURN_START" });
+
+    // Reset turn damage
+    dispatch({ type: "RESET_TURN_DAMAGE" });
+
+    return { betResults, goldLost };
+  }, [state]);
+
+  const handleRevive = useCallback((): void => {
+    if (!state) return;
+
+    const activePlayer = state.players[state.currentPlayerIndex];
+
+    // Discard player's hand
+    dispatch({ type: "DISCARD_HAND", playerId: activePlayer.id });
+
+    // Mark revive as used
+    dispatch({ type: "SET_HAS_USED_REVIVE", value: true });
+  }, [state]);
+
   // Utility Functions
   const getActivePlayer = useCallback((): Player | null => {
     if (!state) return null;
@@ -735,6 +1005,15 @@ export function GameProvider({ children }: GameProviderProps) {
       handleComeOutNatural,
       handleComeOutCraps,
 
+      // Point Phase Actions
+      handlePointPhaseHit,
+      handlePointHit,
+      handleNumberSelected,
+      handleMonsterDefeated,
+      handleEscape,
+      handlePointPhaseCrapOut,
+      handleRevive,
+
       // Utility
       getActivePlayer,
       getCurrentMonster,
@@ -762,6 +1041,16 @@ export function GameProvider({ children }: GameProviderProps) {
       advanceToNextMonster,
       endGame,
       resetGame,
+      drawRandomCard,
+      handleComeOutNatural,
+      handleComeOutCraps,
+      handlePointPhaseHit,
+      handlePointHit,
+      handleNumberSelected,
+      handleMonsterDefeated,
+      handleEscape,
+      handlePointPhaseCrapOut,
+      handleRevive,
       getActivePlayer,
       getCurrentMonster,
       getPlayer,
