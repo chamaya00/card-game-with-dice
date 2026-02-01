@@ -23,8 +23,14 @@ import {
   resetTurnState,
   findPlayerById,
 } from "@/lib/gameInit";
-import { createShuffledDeck, drawCards } from "@/lib/cardDeck";
+import { createShuffledDeck, drawCards, isPermanentCard, isSingleUseCard, isPointCard } from "@/lib/cardDeck";
 import { MARKETPLACE_SIZE } from "@/lib/constants";
+import { calculateCrapOutLoss } from "@/lib/gold";
+import {
+  processComeOutNatural,
+  processComeOutCraps,
+  type BetResolutionResult,
+} from "@/lib/betting";
 
 // ============================================
 // Context Types
@@ -67,6 +73,11 @@ interface GameContextValue {
   endGame: (winnerId: string) => void;
   resetGame: () => void;
 
+  // Come-Out Roll Actions
+  drawRandomCard: (playerId: string) => Card | null;
+  handleComeOutNatural: () => BetResolutionResult[];
+  handleComeOutCraps: () => BetResolutionResult[];
+
   // Utility
   getActivePlayer: () => Player | null;
   getCurrentMonster: () => Monster | null;
@@ -97,7 +108,11 @@ type GameAction =
   | { type: "RESET_MONSTER_TO_TURN_START" }
   | { type: "ADVANCE_TO_NEXT_MONSTER" }
   | { type: "END_GAME"; winnerId: string }
-  | { type: "RESET_GAME" };
+  | { type: "RESET_GAME" }
+  | { type: "DRAW_RANDOM_CARD"; playerId: string; card: Card }
+  | { type: "APPLY_BET_RESOLUTION"; results: BetResolutionResult[] }
+  | { type: "APPLY_CRAP_OUT_PENALTY"; playerId: string; goldLost: number }
+  | { type: "AWARD_MONSTER_REWARDS"; playerId: string; points: number; gold: number };
 
 // ============================================
 // Reducer
@@ -386,6 +401,96 @@ function gameReducer(
       return null;
     }
 
+    case "DRAW_RANDOM_CARD": {
+      if (!state) return null;
+      const { playerId, card } = action;
+      const player = findPlayerById(state.players, playerId);
+      if (!player) return state;
+
+      let updatedPlayer: Player = { ...player };
+
+      if (isPermanentCard(card)) {
+        updatedPlayer = {
+          ...updatedPlayer,
+          permanentCards: [...updatedPlayer.permanentCards, card],
+        };
+      } else if (isSingleUseCard(card)) {
+        updatedPlayer = {
+          ...updatedPlayer,
+          singleUseCards: [...updatedPlayer.singleUseCards, card],
+        };
+      } else if (isPointCard(card)) {
+        updatedPlayer = {
+          ...updatedPlayer,
+          victoryPoints: updatedPlayer.victoryPoints + card.points,
+        };
+      }
+
+      // Remove card from deck
+      const newDeck = state.cardDeck.filter((c) => c.id !== card.id);
+
+      return {
+        ...state,
+        cardDeck: newDeck,
+        players: state.players.map((p) =>
+          p.id === playerId ? updatedPlayer : p
+        ),
+      };
+    }
+
+    case "APPLY_BET_RESOLUTION": {
+      if (!state) return null;
+      const { results } = action;
+
+      // Apply gold changes to all players
+      const updatedPlayers = state.players.map((player) => {
+        const result = results.find((r) => r.playerId === player.id);
+        if (!result) return player;
+        return {
+          ...player,
+          gold: player.gold + result.goldChange,
+        };
+      });
+
+      return {
+        ...state,
+        players: updatedPlayers,
+        bets: [], // Clear bets after resolution
+      };
+    }
+
+    case "APPLY_CRAP_OUT_PENALTY": {
+      if (!state) return null;
+      const { playerId, goldLost } = action;
+
+      return {
+        ...state,
+        players: state.players.map((player) =>
+          player.id === playerId
+            ? { ...player, gold: player.gold - goldLost }
+            : player
+        ),
+      };
+    }
+
+    case "AWARD_MONSTER_REWARDS": {
+      if (!state) return null;
+      const { playerId, points, gold } = action;
+
+      return {
+        ...state,
+        players: state.players.map((player) =>
+          player.id === playerId
+            ? {
+                ...player,
+                victoryPoints: player.victoryPoints + points,
+                gold: player.gold + gold,
+              }
+            : player
+        ),
+      };
+    }
+
     default:
       return state;
   }
@@ -507,6 +612,67 @@ export function GameProvider({ children }: GameProviderProps) {
     dispatch({ type: "RESET_GAME" });
   }, []);
 
+  // Come-Out Roll Actions
+  const drawRandomCard = useCallback(
+    (playerId: string): Card | null => {
+      if (!state || state.cardDeck.length === 0) return null;
+
+      // Pick a random card from the deck
+      const randomIndex = Math.floor(Math.random() * state.cardDeck.length);
+      const card = state.cardDeck[randomIndex];
+
+      dispatch({ type: "DRAW_RANDOM_CARD", playerId, card });
+      return card;
+    },
+    [state]
+  );
+
+  const handleComeOutNatural = useCallback((): BetResolutionResult[] => {
+    if (!state) return [];
+
+    const activePlayer = state.players[state.currentPlayerIndex];
+    const currentMonster = state.monsters[state.currentMonsterIndex];
+
+    // Process bet resolution - all bets returned
+    const betResults = processComeOutNatural(state.bets);
+    dispatch({ type: "APPLY_BET_RESOLUTION", results: betResults });
+
+    // Defeat the monster
+    dispatch({ type: "DEFEAT_MONSTER" });
+
+    // Award monster points and gold to shooter
+    dispatch({
+      type: "AWARD_MONSTER_REWARDS",
+      playerId: activePlayer.id,
+      points: currentMonster.points,
+      gold: currentMonster.goldReward,
+    });
+
+    return betResults;
+  }, [state]);
+
+  const handleComeOutCraps = useCallback((): BetResolutionResult[] => {
+    if (!state) return [];
+
+    const activePlayer = state.players[state.currentPlayerIndex];
+
+    // Process bet resolution - FOR bets lost, AGAINST doubled
+    const betResults = processComeOutCraps(state.bets);
+    dispatch({ type: "APPLY_BET_RESOLUTION", results: betResults });
+
+    // Apply crap-out penalty (50% gold loss)
+    const goldLost = calculateCrapOutLoss(activePlayer.gold);
+    if (goldLost > 0) {
+      dispatch({
+        type: "APPLY_CRAP_OUT_PENALTY",
+        playerId: activePlayer.id,
+        goldLost,
+      });
+    }
+
+    return betResults;
+  }, [state]);
+
   // Utility Functions
   const getActivePlayer = useCallback((): Player | null => {
     if (!state) return null;
@@ -563,6 +729,11 @@ export function GameProvider({ children }: GameProviderProps) {
       // Game Flow Actions
       endGame,
       resetGame,
+
+      // Come-Out Roll Actions
+      drawRandomCard,
+      handleComeOutNatural,
+      handleComeOutCraps,
 
       // Utility
       getActivePlayer,
